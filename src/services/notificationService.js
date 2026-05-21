@@ -15,7 +15,8 @@ export async function requestNotificationPermissions() {
     return false;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  const { status: existingStatus } =
+    await Notifications.getPermissionsAsync();
 
   if (existingStatus === 'granted') {
     return true;
@@ -26,6 +27,16 @@ export async function requestNotificationPermissions() {
   return status === 'granted';
 }
 
+async function setupNotificationChannel() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Prazos processuais',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
+    });
+  }
+}
+
 async function scheduleSingleNotification({
   processNumber,
   deadlineDateISO,
@@ -34,6 +45,7 @@ async function scheduleSingleNotification({
   const notificationDate = new Date(`${deadlineDateISO}T09:00:00`);
   notificationDate.setDate(notificationDate.getDate() - daysBefore);
 
+  // Não agenda notificações no passado
   if (notificationDate <= new Date()) {
     return null;
   }
@@ -48,14 +60,19 @@ async function scheduleSingleNotification({
     body = `O prazo do processo ${processNumber} vence em ${daysBefore} dias.`;
   }
 
-  const notificationId = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Prazo processual',
-      body,
-      sound: true,
-    },
-    trigger: notificationDate,
-  });
+  const notificationId =
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Prazo processual',
+        body,
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: notificationDate,
+        channelId: 'default',
+      },
+    });
 
   return notificationId;
 }
@@ -73,6 +90,8 @@ export async function scheduleDeadlineNotifications({
   if (!hasPermission) {
     return [];
   }
+
+  await setupNotificationChannel();
 
   const reminders = [2, 1, 0];
   const notificationIds = [];
@@ -92,14 +111,18 @@ export async function scheduleDeadlineNotifications({
   return notificationIds;
 }
 
-export async function cancelDeadlineNotifications(notificationIds = []) {
+export async function cancelDeadlineNotifications(
+  notificationIds = []
+) {
   if (Platform.OS === 'web' || !Array.isArray(notificationIds)) {
     return;
   }
 
   for (const notificationId of notificationIds) {
     if (notificationId) {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
+      await Notifications.cancelScheduledNotificationAsync(
+        notificationId
+      );
     }
   }
 }

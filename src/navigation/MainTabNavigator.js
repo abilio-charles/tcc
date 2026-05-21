@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import ProcessStackNavigator from './ProcessStackNavigator';
@@ -9,23 +10,71 @@ const Tab = createBottomTabNavigator();
 
 export default function MainTabNavigator() {
   return (
-    <Tab.Navigator>
+    <Tab.Navigator
+      // Permite trocar de aba arrastando o dedo para os lados
+      screenOptions={({ route }) => ({
+        headerShown: false,
+
+        // Ativa o gesto de swipe entre as abas
+        swipeEnabled: true,
+
+        // Cor da aba selecionada
+        tabBarActiveTintColor: '#1D4ED8',
+
+        // Cor das abas não selecionadas
+        tabBarInactiveTintColor: '#94A3B8',
+
+        // Estilo da barra inferior
+        tabBarStyle: {
+          height: 70,
+          paddingTop: 8,
+          paddingBottom: 8,
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
+          backgroundColor: '#FFFFFF',
+        },
+
+        // Estilo do texto
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+
+        // Ícones monocromáticos
+        tabBarIcon: ({ color, size }) => {
+          let iconName;
+
+          if (route.name === 'Início') {
+            iconName = 'home-outline';
+          } else if (route.name === 'Processos') {
+            iconName = 'folder-outline';
+          } else if (route.name === 'Prazos') {
+            iconName = 'calendar-outline';
+          }
+
+          return (
+            <Ionicons
+              name={iconName}
+              size={size || 24}
+              color={color}
+            />
+          );
+        },
+      })}
+    >
       <Tab.Screen
-        name="Home"
+        name="Início"
         component={HomeScreen}
-        options={{ title: 'Início' }}
       />
 
       <Tab.Screen
-        name="Processes"
+        name="Processos"
         component={ProcessStackNavigator}
-        options={{ title: 'Processos', headerShown: false }}
       />
 
       <Tab.Screen
-        name="Deadlines"
+        name="Prazos"
         component={DeadlinesScreen}
-        options={{ title: 'Prazos' }}
       />
     </Tab.Navigator>
   );
