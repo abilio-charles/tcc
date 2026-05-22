@@ -26,13 +26,13 @@ export default function MainTabNavigator() {
 
         // Estilo da barra inferior
         tabBarStyle: {
-          height: 70,
-          paddingTop: 8,
-          paddingBottom: 8,
+          height: 85,
+          paddingTop: 10,
+          paddingBottom: 18,
           borderTopWidth: 1,
           borderTopColor: '#E2E8F0',
           backgroundColor: '#FFFFFF',
-        },
+      },
 
         // Estilo do texto
         tabBarLabelStyle: {

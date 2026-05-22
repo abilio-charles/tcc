@@ -1,6 +1,6 @@
 import Holidays from 'date-holidays';
 
-const hd = new Holidays('BR');
+const holidays = new Holidays('BR');
 
 export function formatarCampoData(text) {
   const numeros = text.replace(/\D/g, '').slice(0, 8);
@@ -22,53 +22,43 @@ export function converterDataBRParaISO(dataBR) {
   }
 
   const [dia, mes, ano] = dataBR.split('/');
-  const data = new Date(`${ano}-${mes}-${dia}T00:00:00`);
-
-  if (Number.isNaN(data.getTime())) {
-    return null;
-  }
-
-  if (
-    data.getFullYear() !== Number(ano) ||
-    data.getMonth() + 1 !== Number(mes) ||
-    data.getDate() !== Number(dia)
-  ) {
-    return null;
-  }
-
   return `${ano}-${mes}-${dia}`;
 }
 
-export function converterISOParaDate(dataISO) {
+export function converterDateParaISO(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function criarDataLocal(dataISO) {
   return new Date(`${dataISO}T00:00:00`);
 }
 
-export function converterDateParaISO(data) {
+function dataParaISO(data) {
   return data.toISOString().split('T')[0];
 }
 
-export function ehFimDeSemana(data) {
+function ehFinalDeSemana(data) {
   const diaSemana = data.getDay();
   return diaSemana === 0 || diaSemana === 6;
 }
 
-export function ehFeriado(data) {
-  const feriados = hd.isHoliday(data);
-  return !!feriados;
+function ehFeriadoNacional(data) {
+  const resultado = holidays.isHoliday(data);
+  return !!resultado;
 }
 
-export function ehDiaUtil(data) {
-  return !ehFimDeSemana(data) && !ehFeriado(data);
+function ehDiaUtil(data) {
+  return !ehFinalDeSemana(data) && !ehFeriadoNacional(data);
 }
 
-export function proximoDiaUtil(data) {
-  const resultado = new Date(data);
+function avancarParaProximoDiaUtil(data) {
+  const novaData = new Date(data);
 
-  while (!ehDiaUtil(resultado)) {
-    resultado.setDate(resultado.getDate() + 1);
+  while (!ehDiaUtil(novaData)) {
+    novaData.setDate(novaData.getDate() + 1);
   }
 
-  return resultado;
+  return novaData;
 }
 
 export function calcularPrazo({
@@ -84,31 +74,33 @@ export function calcularPrazo({
     return null;
   }
 
-  let dataAtual = converterISOParaDate(dataInicioISO);
+  let dataAtual = criarDataLocal(dataInicioISO);
+  const quantidadeDias = Number(prazoDias);
   let diasContados = 0;
-  const quantidade = Number(prazoDias);
 
   if (!incluirPrimeiroDia) {
     dataAtual.setDate(dataAtual.getDate() + 1);
   }
 
   if (tipoContagem === 'uteis') {
-    while (diasContados < quantidade) {
+    while (diasContados < quantidadeDias) {
       if (ehDiaUtil(dataAtual)) {
         diasContados += 1;
       }
 
-      if (diasContados < quantidade) {
+      if (diasContados < quantidadeDias) {
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
     }
-  } else {
-    dataAtual.setDate(dataAtual.getDate() + quantidade - 1);
 
-    if (prorrogarSeNaoUtil) {
-      dataAtual = proximoDiaUtil(dataAtual);
-    }
+    return dataParaISO(dataAtual);
   }
 
-  return converterDateParaISO(dataAtual);
+  dataAtual.setDate(dataAtual.getDate() + quantidadeDias - 1);
+
+  if (prorrogarSeNaoUtil) {
+    dataAtual = avancarParaProximoDiaUtil(dataAtual);
+  }
+
+  return dataParaISO(dataAtual);
 }

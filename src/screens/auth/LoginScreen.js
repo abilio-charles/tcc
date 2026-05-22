@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
+  Image,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 import { useAuth } from '../../hooks/useAuth';
 
@@ -35,91 +40,187 @@ export default function LoginScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Prazo Jurídico</Text>
-      <Text style={styles.subtitle}>Acesse sua conta</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={loading}
+    <KeyboardAvoidingView
+      style={styles.keyboard}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Entrar</Text>
-        )}
-      </TouchableOpacity>
+        <Image
+          source={require('../../../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
-      <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.link}>Criar uma conta</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.card}>
+          <Text style={styles.title}>Acessar conta</Text>
+          <Text style={styles.subtitle}>
+            Entre para acompanhar seus prazos processuais.
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>E-mail</Text>
+            <View style={styles.inputContainer}>
+              <Feather name="mail" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="seuemail@exemplo.com"
+                placeholderTextColor="#94A3B8"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Senha</Text>
+            <View style={styles.inputContainer}>
+              <Feather name="lock" size={20} color="#64748B" />
+              <TextInput
+                style={styles.input}
+                placeholder="Digite sua senha"
+                placeholderTextColor="#94A3B8"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="log-in" size={20} color="#FFFFFF" />
+                <Text style={styles.buttonText}>Entrar</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => navigation.navigate('Register')}
+          >
+            <Text style={styles.linkText}>
+              Ainda não tem conta?{' '}
+              <Text style={styles.linkStrong}>Criar conta</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  keyboard: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  container: {
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F8FAFC',
+  },
+  logo: {
+    width: 220,
+    height: 130,
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1d4ed8',
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0F172A',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#475569',
+    fontSize: 15,
+    color: '#64748B',
     textAlign: 'center',
-    marginBottom: 32,
+    lineHeight: 22,
+    marginBottom: 24,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 18,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  inputContainer: {
+    height: 58,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
   },
   input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 14,
-    fontSize: 16,
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0F172A',
   },
   button: {
-    backgroundColor: '#1d4ed8',
-    padding: 15,
-    borderRadius: 10,
+    height: 58,
+    backgroundColor: '#1D4ED8',
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
     marginTop: 8,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   buttonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
+    marginLeft: 10,
   },
-  link: {
+  linkButton: {
     marginTop: 20,
-    textAlign: 'center',
-    color: '#1d4ed8',
-    fontWeight: 'bold',
+    alignItems: 'center',
+  },
+  linkText: {
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  linkStrong: {
+    color: '#1D4ED8',
+    fontWeight: '900',
   },
 });

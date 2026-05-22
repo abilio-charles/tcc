@@ -1,64 +1,80 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  ScrollView,
   Alert,
   ActivityIndicator,
-  ScrollView,
+  Platform,
 } from 'react-native';
+
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Feather } from '@expo/vector-icons';
 
 import { useAuth } from '../../hooks/useAuth';
 import { createProcess, updateProcess } from '../../services/processService';
-
-import {
-  calcularPrazo,
-  converterDataBRParaISO,
-  formatarCampoData,
-  formatarDataBR,
-} from '../../utils/dateUtils';
 
 import {
   scheduleDeadlineNotifications,
   cancelDeadlineNotifications,
 } from '../../services/notificationService';
 
+import {
+  calcularPrazo,
+  formatarDataBR,
+} from '../../utils/dateUtils';
+
+function formatarDataParaBR(date) {
+  return date.toLocaleDateString('pt-BR');
+}
+
+function converterDateParaISO(date) {
+  return date.toISOString().split('T')[0];
+}
+
 export default function ProcessFormScreen({ navigation, route }) {
   const { user } = useAuth();
 
-  const processToEdit = route.params?.process;
-  const isEditing = !!processToEdit;
+  const process = route.params?.process;
+  const isEditing = !!process;
 
-  const [numeroProcesso, setNumeroProcesso] = useState(
-    processToEdit?.numero_processo || ''
-  );
-  const [parte, setParte] = useState(processToEdit?.parte || '');
-  const [tipoAcao, setTipoAcao] = useState(processToEdit?.tipo_acao || '');
-  const [dataInicio, setDataInicio] = useState(
-    processToEdit?.data_intimacao
-      ? formatarDataBR(processToEdit.data_intimacao)
-      : ''
-  );
-  const [prazoDias, setPrazoDias] = useState(
-    processToEdit?.prazo_dias ? String(processToEdit.prazo_dias) : ''
-  );
-  const [incluirPrimeiroDia, setIncluirPrimeiroDia] = useState(
-    processToEdit?.incluir_primeiro_dia || false
-  );
-  const [tipoContagem, setTipoContagem] = useState(
-    processToEdit?.tipo_contagem || 'uteis'
-  );
-  const [prorrogarSeNaoUtil, setProrrogarSeNaoUtil] = useState(
-    processToEdit?.prorrogar_se_nao_util ?? true
-  );
+  const [numeroProcesso, setNumeroProcesso] = useState('');
+  const [parte, setParte] = useState('');
+  const [tipoAcao, setTipoAcao] = useState('');
+  const [dataIntimacao, setDataIntimacao] = useState(new Date());
+  const [prazoDias, setPrazoDias] = useState('');
+  const [tipoContagem, setTipoContagem] = useState('uteis');
+  const [incluirPrimeiroDia, setIncluirPrimeiroDia] = useState(false);
+  const [prorrogarSeNaoUtil, setProrrogarSeNaoUtil] = useState(true);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (process) {
+      setNumeroProcesso(process.numero_processo || '');
+      setParte(process.parte || '');
+      setTipoAcao(process.tipo_acao || '');
+
+      if (process.data_intimacao) {
+        setDataIntimacao(new Date(`${process.data_intimacao}T00:00:00`));
+      }
+
+      setPrazoDias(process.prazo_dias ? String(process.prazo_dias) : '');
+      setTipoContagem(process.tipo_contagem || 'uteis');
+      setIncluirPrimeiroDia(process.incluir_primeiro_dia || false);
+      setProrrogarSeNaoUtil(process.prorrogar_se_nao_util ?? true);
+    }
+  }, [process]);
+
+  const dataInicioBR = formatarDataParaBR(dataIntimacao);
+
   const dataFinalPreview =
-    dataInicio && prazoDias
+    dataInicioBR && prazoDias
       ? calcularPrazo({
-          dataInicioBR: dataInicio,
+          dataInicioBR,
           prazoDias,
           incluirPrimeiroDia,
           tipoContagem,
@@ -67,13 +83,13 @@ export default function ProcessFormScreen({ navigation, route }) {
       : '';
 
   async function handleSave() {
-    if (!numeroProcesso || !parte || !dataInicio || !prazoDias) {
-      Alert.alert('Atenção', 'Preencha os campos obrigatórios.');
+    if (!numeroProcesso || !parte || !tipoAcao || !prazoDias) {
+      Alert.alert('Campos obrigatórios', 'Preencha todos os campos.');
       return;
     }
 
     const dataFinal = calcularPrazo({
-      dataInicioBR: dataInicio,
+      dataInicioBR,
       prazoDias,
       incluirPrimeiroDia,
       tipoContagem,
@@ -81,33 +97,34 @@ export default function ProcessFormScreen({ navigation, route }) {
     });
 
     if (!dataFinal) {
-      Alert.alert(
-        'Data inválida',
-        'Informe a data no formato DD/MM/AAAA. Exemplo: 14/05/2026.'
-      );
+      Alert.alert('Erro', 'Não foi possível calcular a data final.');
       return;
     }
 
-    const dataInicioBanco = converterDataBRParaISO(dataInicio);
+    const dataIntimacaoISO = converterDateParaISO(dataIntimacao);
 
     try {
       setLoading(true);
 
-      if (isEditing) {
-        await cancelDeadlineNotifications(processToEdit.notification_ids || []);
+      if (isEditing && process.notification_ids?.length > 0) {
+        await cancelDeadlineNotifications(process.notification_ids);
       }
 
-      const notificationIds = await scheduleDeadlineNotifications({
-        processNumber: numeroProcesso,
-        deadlineDateISO: dataFinal,
-      });
+      let notificationIds = [];
+
+      if (Platform.OS !== 'web') {
+        notificationIds = await scheduleDeadlineNotifications({
+          processNumber: numeroProcesso,
+          deadlineDateISO: dataFinal,
+        });
+      }
 
       const processData = {
         user_id: user.id,
         numero_processo: numeroProcesso,
         parte,
         tipo_acao: tipoAcao,
-        data_intimacao: dataInicioBanco,
+        data_intimacao: dataIntimacaoISO,
         prazo_dias: Number(prazoDias),
         data_final: dataFinal,
         incluir_primeiro_dia: incluirPrimeiroDia,
@@ -117,7 +134,7 @@ export default function ProcessFormScreen({ navigation, route }) {
       };
 
       if (isEditing) {
-        await updateProcess(processToEdit.id, processData);
+        await updateProcess(process.id, processData);
       } else {
         await createProcess(processData);
       }
@@ -138,137 +155,190 @@ export default function ProcessFormScreen({ navigation, route }) {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.title}>
-        {isEditing ? 'Editar Processo' : 'Cadastrar Processo'}
+        {isEditing ? 'Editar Processo' : 'Novo Processo'}
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Número do processo"
-        placeholderTextColor="rgba(0,0,0,0.35)"
-        value={numeroProcesso}
-        onChangeText={setNumeroProcesso}
-      />
+      <Text style={styles.subtitle}>
+        Preencha as informações do processo judicial.
+      </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Parte / Cliente"
-        placeholderTextColor="rgba(0,0,0,0.35)"
-        value={parte}
-        onChangeText={setParte}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Tipo de ação"
-        placeholderTextColor="rgba(0,0,0,0.35)"
-        value={tipoAcao}
-        onChangeText={setTipoAcao}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Data inicial (DD/MM/AAAA)"
-        placeholderTextColor="rgba(0,0,0,0.35)"
-        value={dataInicio}
-        onChangeText={(text) => setDataInicio(formatarCampoData(text))}
-        keyboardType="numeric"
-        maxLength={10}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Prazo em dias"
-        placeholderTextColor="rgba(0,0,0,0.35)"
-        value={prazoDias}
-        onChangeText={(text) => setPrazoDias(text.replace(/[^0-9]/g, ''))}
-        keyboardType="numeric"
-      />
-
-      <Text style={styles.sectionTitle}>Incluir o primeiro dia?</Text>
-
-      <View style={styles.optionRow}>
-        <TouchableOpacity
-          style={[
-            styles.optionButton,
-            incluirPrimeiroDia && styles.optionButtonActive,
-          ]}
-          onPress={() => setIncluirPrimeiroDia(true)}
-        >
-          <Text
-            style={[
-              styles.optionText,
-              incluirPrimeiroDia && styles.optionTextActive,
-            ]}
-          >
-            Sim
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.optionButton,
-            !incluirPrimeiroDia && styles.optionButtonActive,
-          ]}
-          onPress={() => setIncluirPrimeiroDia(false)}
-        >
-          <Text
-            style={[
-              styles.optionText,
-              !incluirPrimeiroDia && styles.optionTextActive,
-            ]}
-          >
-            Não
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Número do Processo</Text>
+        <View style={styles.inputContainer}>
+          <Feather name="file-text" size={20} color="#64748B" />
+          <TextInput
+            style={styles.input}
+            placeholder="0000000-00.0000.0.00.0000"
+            placeholderTextColor="#94A3B8"
+            value={numeroProcesso}
+            onChangeText={setNumeroProcesso}
+          />
+        </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Tipo de contagem</Text>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Parte</Text>
+        <View style={styles.inputContainer}>
+          <Feather name="user" size={20} color="#64748B" />
+          <TextInput
+            style={styles.input}
+            placeholder="Nome da parte"
+            placeholderTextColor="#94A3B8"
+            value={parte}
+            onChangeText={setParte}
+          />
+        </View>
+      </View>
 
-      <View style={styles.optionRow}>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Tipo de Ação</Text>
+        <View style={styles.inputContainer}>
+          <Feather name="briefcase" size={20} color="#64748B" />
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Trabalhista"
+            placeholderTextColor="#94A3B8"
+            value={tipoAcao}
+            onChangeText={setTipoAcao}
+          />
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Data Inicial do Prazo</Text>
+
         <TouchableOpacity
-          style={[
-            styles.optionButton,
-            tipoContagem === 'uteis' && styles.optionButtonActive,
-          ]}
-          onPress={() => setTipoContagem('uteis')}
+          style={styles.dateButton}
+          onPress={() => setShowDatePicker(true)}
         >
-          <Text
-            style={[
-              styles.optionText,
-              tipoContagem === 'uteis' && styles.optionTextActive,
-            ]}
-          >
-            Dias úteis
-          </Text>
+          <Feather name="calendar" size={20} color="#1D4ED8" />
+          <Text style={styles.dateText}>{dataInicioBR}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.optionButton,
-            tipoContagem === 'corridos' && styles.optionButtonActive,
-          ]}
-          onPress={() => setTipoContagem('corridos')}
-        >
-          <Text
+        {showDatePicker && (
+          <DateTimePicker
+            value={dataIntimacao}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+
+              if (selectedDate) {
+                setDataIntimacao(selectedDate);
+              }
+            }}
+          />
+        )}
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Prazo em Dias</Text>
+        <View style={styles.inputContainer}>
+          <Feather name="clock" size={20} color="#64748B" />
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: 15"
+            placeholderTextColor="#94A3B8"
+            keyboardType="numeric"
+            value={prazoDias}
+            onChangeText={(text) => setPrazoDias(text.replace(/[^0-9]/g, ''))}
+          />
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Incluir data inicial?</Text>
+
+        <View style={styles.optionContainer}>
+          <TouchableOpacity
             style={[
-              styles.optionText,
-              tipoContagem === 'corridos' && styles.optionTextActive,
+              styles.optionButton,
+              incluirPrimeiroDia && styles.optionButtonActive,
             ]}
+            onPress={() => setIncluirPrimeiroDia(true)}
           >
-            Dias corridos
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.optionText,
+                incluirPrimeiroDia && styles.optionTextActive,
+              ]}
+            >
+              Sim
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionButton,
+              !incluirPrimeiroDia && styles.optionButtonActive,
+            ]}
+            onPress={() => setIncluirPrimeiroDia(false)}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                !incluirPrimeiroDia && styles.optionTextActive,
+              ]}
+            >
+              Não
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Tipo de Contagem</Text>
+
+        <View style={styles.optionContainer}>
+          <TouchableOpacity
+            style={[
+              styles.optionButton,
+              tipoContagem === 'uteis' && styles.optionButtonActive,
+            ]}
+            onPress={() => setTipoContagem('uteis')}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                tipoContagem === 'uteis' && styles.optionTextActive,
+              ]}
+            >
+              Dias úteis
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionButton,
+              tipoContagem === 'corridos' && styles.optionButtonActive,
+            ]}
+            onPress={() => setTipoContagem('corridos')}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                tipoContagem === 'corridos' && styles.optionTextActive,
+              ]}
+            >
+              Dias corridos
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {tipoContagem === 'corridos' && (
-        <>
-          <Text style={styles.sectionTitle}>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>
             Se o prazo fatal cair no sábado, domingo ou feriado, prorrogar?
           </Text>
 
-          <View style={styles.optionRow}>
+          <View style={styles.optionContainer}>
             <TouchableOpacity
               style={[
                 styles.optionButton,
@@ -303,35 +373,45 @@ export default function ProcessFormScreen({ navigation, route }) {
               </Text>
             </TouchableOpacity>
           </View>
-        </>
+        </View>
       )}
 
       {dataFinalPreview ? (
         <View style={styles.previewBox}>
-          <Text style={styles.previewLabel}>Data final calculada:</Text>
+          <Text style={styles.previewLabel}>Data final calculada</Text>
           <Text style={styles.previewDate}>
             {formatarDataBR(dataFinalPreview)}
-          </Text>
-          <Text style={styles.previewInfo}>
-            Tipo: {tipoContagem === 'uteis' ? 'dias úteis' : 'dias corridos'}
-          </Text>
-          <Text style={styles.previewInfo}>
-            Lembretes: 2 dias antes, 1 dia antes e no dia do vencimento
           </Text>
         </View>
       ) : null}
 
+      <View style={styles.notificationBox}>
+        <Feather name="bell" size={22} color="#1D4ED8" />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Text style={styles.notificationTitle}>Lembretes automáticos</Text>
+          <Text style={styles.notificationText}>
+            O aplicativo enviará notificações:
+            {'\n'}• 2 dias antes
+            {'\n'}• 1 dia antes
+            {'\n'}• No dia do vencimento
+          </Text>
+        </View>
+      </View>
+
       <TouchableOpacity
-        style={styles.button}
+        style={styles.saveButton}
         onPress={handleSave}
         disabled={loading}
       >
         {loading ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.buttonText}>
-            {isEditing ? 'Atualizar processo' : 'Salvar processo'}
-          </Text>
+          <>
+            <Feather name="save" size={20} color="#FFFFFF" />
+            <Text style={styles.saveButtonText}>
+              {isEditing ? 'Atualizar Processo' : 'Salvar Processo'}
+            </Text>
+          </>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -340,88 +420,135 @@ export default function ProcessFormScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    padding: 24,
-    backgroundColor: '#f8fafc',
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    padding: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1d4ed8',
-    marginBottom: 24,
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  subtitle: {
+    color: '#64748B',
+    fontSize: 15,
+    marginBottom: 28,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 22,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  inputContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 60,
   },
   input: {
-    backgroundColor: '#fff',
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  dateButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 14,
-    fontSize: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#334155',
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  optionRow: {
+    borderColor: '#E2E8F0',
+    height: 60,
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  dateText: {
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  optionContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 10,
-    marginBottom: 14,
   },
   optionButton: {
     flex: 1,
-    padding: 13,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
+    borderColor: '#CBD5E1',
+    borderRadius: 18,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   optionButtonActive: {
-    backgroundColor: '#1d4ed8',
-    borderColor: '#1d4ed8',
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1D4ED8',
   },
   optionText: {
-    color: '#334155',
-    fontWeight: 'bold',
+    color: '#475569',
+    fontWeight: '800',
   },
   optionTextActive: {
-    color: '#fff',
+    color: '#FFFFFF',
   },
   previewBox: {
-    backgroundColor: '#e0f2fe',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 16,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 22,
   },
   previewLabel: {
-    color: '#0369a1',
-    fontWeight: 'bold',
-    marginBottom: 4,
+    color: '#047857',
+    fontWeight: '800',
+    marginBottom: 6,
   },
   previewDate: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#075985',
+    color: '#065F46',
+    fontSize: 26,
+    fontWeight: '900',
   },
-  previewInfo: {
-    marginTop: 4,
-    color: '#0369a1',
+  notificationBox: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 20,
+    padding: 18,
+    flexDirection: 'row',
+    marginBottom: 30,
   },
-  button: {
-    backgroundColor: '#1d4ed8',
-    padding: 15,
-    borderRadius: 10,
+  notificationTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#1D4ED8',
+    marginBottom: 6,
+  },
+  notificationText: {
+    color: '#475569',
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  saveButton: {
+    height: 60,
+    backgroundColor: '#1D4ED8',
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    flexDirection: 'row',
+    elevation: 5,
   },
-  buttonText: {
-    color: '#fff',
+  saveButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
+    marginLeft: 10,
   },
 });
